@@ -76,6 +76,9 @@
     <ClCompile Include="jit.boids3d.c" />
     <ClCompile Include="max.jit.boids3d.c" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="..\README" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
