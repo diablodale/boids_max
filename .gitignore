@@ -1,6 +1,6 @@
 # custom
-# *.mxe
-# *.mxo/
+*.mxe
+*.mxo/
 
 # Visual Studio
 *proj.user
