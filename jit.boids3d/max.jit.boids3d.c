@@ -9,6 +9,20 @@
 #include "jit.common.h"
 #include "max.jit.mop.h"
 
+// a macro to mark exported symbols in the code without requiring an external file to define them
+#ifdef WIN_VERSION
+	#ifdef C74_EXPORT	// Max SDK 6.1.1+ defines this
+		#define T_EXPORT C74_EXPORT
+	#else
+		// note that this is the required syntax on windows regardless of whether the compiler is msvc or gcc
+		#define T_EXPORT __declspec(dllexport)
+	#endif
+#else // MAC_VERSION
+	// usage of this on Mac w/ Max SDK 6.1.1+ is unknown
+	// the mac uses the standard gcc syntax, you should also set the -fvisibility=hidden flag to hide the non-marked symbols
+	#define T_EXPORT __attribute__((visibility("default")))
+#endif
+
 typedef struct _max_jit_boids3d 
 {
 	t_object		ob;
@@ -22,12 +36,12 @@ void max_jit_boids3d_free(t_max_jit_boids3d *x);
 void max_jit_boids3d_outputmatrix(t_max_jit_boids3d *x);
 void *max_jit_boids3d_class;
 		 	
-void main(void)
+int T_EXPORT main(void)
 {	
 	void *p,*q;
 	
 	jit_boids3d_init();	
-	setup(&max_jit_boids3d_class, max_jit_boids3d_new, (method)max_jit_boids3d_free, (short)sizeof(t_max_jit_boids3d), 
+	setup((t_messlist**)&max_jit_boids3d_class, (method)max_jit_boids3d_new, (method)max_jit_boids3d_free, (short)sizeof(t_max_jit_boids3d), 
 		0L, A_GIMME, 0);
 
 	p = max_jit_classex_setup(calcoffset(t_max_jit_boids3d,obex));
@@ -79,7 +93,7 @@ void *max_jit_boids3d_new(t_symbol *s, long argc, t_atom *argv)
 			max_jit_attr_args(x,argc,argv);
 		} else {
 			error("jit.boids3d: could not allocate object");
-			freeobject(x);
+			freeobject((t_object *)x);
 		}
 	}
 	return (x);

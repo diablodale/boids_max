@@ -8,6 +8,21 @@
 #include	<ext_common.h>
 #include	<stdlib.h>
 #include	<math.h>
+#include	<time.h>
+
+// a macro to mark exported symbols in the code without requiring an external file to define them
+#ifdef WIN_VERSION
+	#ifdef C74_EXPORT	// Max SDK 6.1.1+ defines this
+		#define T_EXPORT C74_EXPORT
+	#else
+		// note that this is the required syntax on windows regardless of whether the compiler is msvc or gcc
+		#define T_EXPORT __declspec(dllexport)
+	#endif
+#else // MAC_VERSION
+	// usage of this on Mac w/ Max SDK 6.1.1+ is unknown
+	// the mac uses the standard gcc syntax, you should also set the -fvisibility=hidden flag to hide the non-marked symbols
+	#define T_EXPORT __attribute__((visibility("default")))
+#endif
 
 // constants
 #define			kAssistInlet	1
@@ -98,7 +113,7 @@ void*	bflock;
 t_symbol *ps_nothing;
 
 // prototypes
-void main();
+int T_EXPORT main();
 void* Flock_new(long numBoids, long mode);
 void Flock_free(FlockPtr bflockPtr);
 void Flock_assist(FlockPtr bflockPtr, void* temp, long letType, long letNum, char *assistStr);
@@ -140,7 +155,7 @@ void Flock_set_dir(FlockPtr bflockPtr, Symbol *msg, short argc, Atom *argv);
 void Flock_set_speed(FlockPtr bflockPtr, Symbol *msg, short argc, Atom *argv);
 void Flock_set_speedinv(FlockPtr bflockPtr, Symbol *msg, short argc, Atom *argv);
 
-void main()
+int T_EXPORT main()
 {
 	setup((t_messlist **) &bflock, (method) Flock_new, (method) Flock_free, (short) sizeof(FlockObject), 0L, A_LONG, A_DEFLONG, 0);
 	addmess((method) Flock_assist,"assist",	A_CANT, 0);
@@ -984,8 +999,8 @@ double RandomInt(double minRange, double maxRange)
 	unsigned short	qdRdm;
 	double			t, result;
 	
-	qdRdm = Random();
-	t = (double)qdRdm / 65536.0; 	// now 0 <= t <= 1
+	qdRdm = rand();
+	t = (double)qdRdm / (double)RAND_MAX; 	// now 0 <= t <= 1
 	result = (t * (maxRange - minRange)) + minRange;
 	return(result);
 }

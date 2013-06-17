@@ -1,6 +1,0 @@
-;jit.boids3d.def
-
-LIBRARY	jit.boids3d
-
-EXPORTS
-	main

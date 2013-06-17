@@ -1,6 +1,0 @@
-;jit.boids2d.def
-
-LIBRARY	jit.boids2d
-
-EXPORTS
-	main

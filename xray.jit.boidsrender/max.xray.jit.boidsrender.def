@@ -1,6 +1,0 @@
-;xray.jit.boidsrender.def
-
-LIBRARY	jit.boidsrender
-
-EXPORTS
-	main

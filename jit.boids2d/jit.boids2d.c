@@ -297,11 +297,13 @@ t_jit_err jit_boids2d_init(void)
 t_jit_err jit_boids2d_neighbors(t_jit_boids2d *flockPtr, void *attr, long argc, t_atom *argv)
 {
 	flockPtr->neighbors = (double)MIN(jit_atom_getfloat(argv), kMaxNeighbors);
+	return JIT_ERR_NONE;
 }
 
 t_jit_err jit_boids2d_minspeed(t_jit_boids2d *flockPtr, void *attr, long argc, t_atom *argv)
 {
 	flockPtr->minspeed = (double)MAX(jit_atom_getfloat(argv), 0.000001);
+	return JIT_ERR_NONE;
 }
 
 t_jit_err jit_boids2d_inertia(t_jit_boids2d *flockPtr, void *attr, long argc, t_atom *argv)
@@ -312,6 +314,7 @@ t_jit_err jit_boids2d_inertia(t_jit_boids2d *flockPtr, void *attr, long argc, t_
 		flockPtr->inertia = 0.000001;
 	else
 		flockPtr->inertia = val;
+	return JIT_ERR_NONE;
 }
 
 t_jit_err jit_boids2d_number(t_jit_boids2d *flockPtr, void *attr, long argc, t_atom *argv)
@@ -322,6 +325,7 @@ t_jit_err jit_boids2d_number(t_jit_boids2d *flockPtr, void *attr, long argc, t_a
 	Flock_donumBoids(flockPtr, numBoids);
 	flockPtr->number = numBoids;
 	Flock_resetBoids(flockPtr);
+	return JIT_ERR_NONE;
 }
 
 
@@ -330,6 +334,7 @@ t_jit_err jit_boids2d_set(t_jit_boids2d *flockPtr, void *attr, long argc, t_atom
 	long set;	
 	set = MAX(jit_atom_getlong(argv), 0);
 	flockPtr->set = set;
+	return JIT_ERR_NONE;
 }
 
 t_jit_err jit_boids2d_set_pos(t_jit_boids2d *flockPtr, void *attr, long argc, t_atom *argv)
@@ -344,6 +349,7 @@ t_jit_err jit_boids2d_set_pos(t_jit_boids2d *flockPtr, void *attr, long argc, t_
 	flockPtr->boid[id].newPos[y] = pos[1];
 	flockPtr->boid[id].oldPos[x] = pos[0];
 	flockPtr->boid[id].oldPos[y] = pos[1];
+	return JIT_ERR_NONE;
 }
 
 t_jit_err jit_boids2d_set_dir(t_jit_boids2d *flockPtr, void *attr, long argc, t_atom *argv)
@@ -358,6 +364,7 @@ t_jit_err jit_boids2d_set_dir(t_jit_boids2d *flockPtr, void *attr, long argc, t_
 	flockPtr->boid[id].newDir[y] = dir[1];
 	flockPtr->boid[id].oldDir[x] = dir[0];
 	flockPtr->boid[id].oldDir[y] = dir[1];
+	return JIT_ERR_NONE;
 }
 
 t_jit_err jit_boids2d_set_speed(t_jit_boids2d *flockPtr, void *attr, long argc, t_atom *argv)
@@ -366,8 +373,8 @@ t_jit_err jit_boids2d_set_speed(t_jit_boids2d *flockPtr, void *attr, long argc, 
 	int id = flockPtr->set; 
 	
 	speed = jit_atom_getfloat(argv+0);
-	
 	flockPtr->boid[id].speed = speed;
+	return JIT_ERR_NONE;
 }
 
 t_jit_err jit_boids2d_set_speedinv(t_jit_boids2d *flockPtr, void *attr, long argc, t_atom *argv)
@@ -375,9 +382,9 @@ t_jit_err jit_boids2d_set_speedinv(t_jit_boids2d *flockPtr, void *attr, long arg
 	double speed;
 	int id = flockPtr->set; 
 	
-	speed = flockPtr->boid[id].speed ;
-	
+	speed = flockPtr->boid[id].speed;
 	flockPtr->boid[id].speed = -1*speed;
+	return JIT_ERR_NONE;
 }
 
 
