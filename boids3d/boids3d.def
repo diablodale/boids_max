@@ -1,0 +1,12 @@
+;boids3d.def
+
+
+
+LIBRARY boids3d
+
+
+
+EXPORTS
+
+	main
+
