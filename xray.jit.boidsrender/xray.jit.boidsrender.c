@@ -21,6 +21,7 @@ t_jit_err xray_jit_boidsrender_matrix_calc(t_xray_jit_boidsrender *x, void *inpu
 
 void xray_jit_boidsrender_calculate_ndim(t_xray_jit_boidsrender *x, long dimcount, long *dim, long planecount, t_jit_matrix_info *in1_minfo, char *bip1, 
 	t_jit_matrix_info *out_minfo, char *bop);
+void xray_jit_boidsrender_make_texcoords(t_jit_matrix_info *out2_minfo, char *bop2);
 	
 void TransformPoint(float *p_in, float *p_out, float *X, float *Y, float *Z);
 void InvTransformPoint(float *p_in, float *p_out, float *X, float *Y, float *Z);
@@ -41,7 +42,7 @@ t_jit_err xray_jit_boidsrender_init(void)
 		sizeof(t_xray_jit_boidsrender),0L);
 
 	//add mop
-	mop = jit_object_new(_jit_sym_jit_mop,1,1);
+	mop = jit_object_new(_jit_sym_jit_mop,1,2);
 	jit_atom_setsym(a, _jit_sym_long);
 	jit_atom_setsym(a+1,_jit_sym_float32);
 	jit_atom_setsym(a+2,_jit_sym_float64);
@@ -69,54 +70,65 @@ t_jit_err xray_jit_boidsrender_init(void)
 t_jit_err xray_jit_boidsrender_matrix_calc(t_xray_jit_boidsrender *x, void *inputs, void *outputs)
 {
 	t_jit_err err=JIT_ERR_NONE;
-	long in1_savelock,in2_savelock,out_savelock;
-	t_jit_matrix_info in1_minfo,out_minfo;
-	char *in1_bp,*out_bp;
+	long in1_savelock,out_savelock, out2_savelock;
+	t_jit_matrix_info in1_minfo,out_minfo, out2_minfo;
+	char *in1_bp,*out_bp, *out2_bp;
 	long i,dimcount,planecount,dim[JIT_MATRIX_MAX_DIMCOUNT];
-	void *in1_matrix,*out_matrix;
+	void *in1_matrix,*out_matrix, *out2_matrix;
 	
 	in1_matrix 	= jit_object_method(inputs,_jit_sym_getindex,0);
 	out_matrix 	= jit_object_method(outputs,_jit_sym_getindex,0);
+	out2_matrix = jit_object_method(outputs,_jit_sym_getindex,1);
 
-	if (x&&in1_matrix&&out_matrix)
+	if (x&&in1_matrix&&out_matrix&&out2_matrix)
 	{
 		in1_savelock = (long) jit_object_method(in1_matrix,_jit_sym_lock,1);
 		out_savelock = (long) jit_object_method(out_matrix,_jit_sym_lock,1);
+		out2_savelock = (long) jit_object_method(out2_matrix,_jit_sym_lock,1);
 		
 		jit_object_method(in1_matrix,_jit_sym_getinfo,&in1_minfo);
 		jit_object_method(out_matrix,_jit_sym_getinfo,&out_minfo);
+		jit_object_method(out2_matrix,_jit_sym_getinfo,&out2_minfo);
 		
 		//each row is a point turned into a quad
 		out_minfo.dim[0] = 4;
 		out_minfo.dim[1] = in1_minfo.dim[0];
 		out_minfo.planecount = 3;
 		
+		out2_minfo.dim[0] = 4;
+		out2_minfo.dim[1] = in1_minfo.dim[0];
+		out2_minfo.planecount = 2;
+		
 		jit_object_method(out_matrix,_jit_sym_setinfo,&out_minfo);
 		jit_object_method(out_matrix,_jit_sym_getinfo,&out_minfo);
 		
+		jit_object_method(out2_matrix,_jit_sym_setinfo,&out2_minfo);
+		jit_object_method(out2_matrix,_jit_sym_getinfo,&out2_minfo);
+		
 		jit_object_method(in1_matrix,_jit_sym_getdata,&in1_bp);
 		jit_object_method(out_matrix,_jit_sym_getdata,&out_bp);
+		jit_object_method(out2_matrix,_jit_sym_getdata,&out2_bp);
 		
 		if (!in1_bp) { err=JIT_ERR_INVALID_INPUT; goto out;}
-		if (!out_bp) { err=JIT_ERR_INVALID_OUTPUT; goto out;}	
+		if (!out_bp||!out2_bp) { err=JIT_ERR_INVALID_OUTPUT; goto out;}	
 			
 		//get dimensions/planecount
 		dimcount   = in1_minfo.dimcount;
 		planecount = in1_minfo.planecount;			
 		
-		for (i=0;i<dimcount;i++)
-		{
+		for (i=0;i<dimcount;i++) {
 			dim[i] = in1_minfo.dim[i];
 		}
 				
 		xray_jit_boidsrender_calculate_ndim(x, dimcount, dim, planecount, &in1_minfo, in1_bp, &out_minfo, out_bp);
+		xray_jit_boidsrender_make_texcoords(&out2_minfo, out2_bp);
 	}
-	else
-	{
+	else {
 		return JIT_ERR_INVALID_PTR;
 	}
 	
 out:
+	jit_object_method(out2_matrix,gensym("lock"),out2_savelock);
 	jit_object_method(out_matrix,gensym("lock"),out_savelock);
 	jit_object_method(in1_matrix,gensym("lock"),in1_savelock);
 	return err;
@@ -194,7 +206,32 @@ void xray_jit_boidsrender_calculate_ndim(t_xray_jit_boidsrender *x, long dimcoun
 		{
 			fip = (float *)bip1;
 			
-			if(planecount == 3) {
+			switch(planecount) {
+			case 2:
+				for(i=0; i < dim[0]; i++) {
+					//make quad in clockwise direction
+					fop = (float *)(bop + i*outrowstride);
+					
+					fop[0] = fip[0]-scaleWidth;
+					fop[1] = fip[1]-scaleHeight;
+					fop[2] = 0;
+					
+					fop[3] = fip[0]-scaleWidth;
+					fop[4] = fip[1]+scaleHeight;
+					fop[5] = 0;
+					
+					fop[6] = fip[0]+scaleWidth;
+					fop[7] = fip[1]+scaleHeight;
+					fop[8] = 0;
+					
+					fop[9] = fip[0]+scaleWidth;
+					fop[10] = fip[1]-scaleHeight;
+					fop[11] = 0;
+					
+					fip += planecount;
+				}	
+			break;
+			case 3:
 				for(i=0; i < dim[0]; i++) {
 					//make quad in clockwise direction
 					fop = (float *)(bop + i*outrowstride);
@@ -217,14 +254,98 @@ void xray_jit_boidsrender_calculate_ndim(t_xray_jit_boidsrender *x, long dimcoun
 					
 					fip += planecount;
 				}	
-			}
-			else if (planecount >= 6) {
-			
+			break;
+			case 4:
+				if(x->normalize == 0) {
+					for(i=0; i < dim[0]; i++) {
+						fop = (float *)(bop + i*outrowstride);
+						
+						//calculate normalized vector direction
+						vectNorm[0] = fip[2]-fip[0];
+						vectNorm[1] = fip[3]-fip[1];
+						
+						centerPoint[0] = (fip[0] + fip[2])/2.0f;
+						centerPoint[1] = (fip[1] + fip[3])/2.0f;
+						
+						/*
+							widthOffset = { -vectNorm[1]*scaleWidth, vectNorm[0]*scaleWidth }
+							heightOffset = { vectNorm[0]*scaleHeight, vectNorm[1]*scaleHeight }
+						*/
+						
+						//P2 + widthOffset - heightOffset
+						fop[0] = centerPoint[0] - vectNorm[1]*scaleWidth - vectNorm[0]*scaleHeight;
+						fop[1] = centerPoint[1] + vectNorm[0]*scaleWidth - vectNorm[1]*scaleHeight;
+						fop[2] = 0.0f;
+						
+						//P2 - widthOffset - heightOffset
+						fop[3] = centerPoint[0] + vectNorm[1]*scaleWidth - vectNorm[0]*scaleHeight;
+						fop[4] = centerPoint[1] - vectNorm[0]*scaleWidth - vectNorm[1]*scaleHeight;
+						fop[5] = 0.0f;
+						
+						//P1 - widthOffset + heightOffset
+						fop[6] = centerPoint[0] + vectNorm[1]*scaleWidth + vectNorm[0]*scaleHeight;
+						fop[7] = centerPoint[1] - vectNorm[0]*scaleWidth + vectNorm[1]*scaleHeight;
+						fop[8] = 0.0f;
+						
+						//P1 + widthOffset + heightOffset
+						fop[9] = centerPoint[0] - vectNorm[1]*scaleWidth + vectNorm[0]*scaleHeight;
+						fop[10] = centerPoint[1] + vectNorm[0]*scaleWidth + vectNorm[1]*scaleHeight;
+						fop[11] = 0.0f;
+						
+						fip += planecount;
+					}
+				}
+				else {
+					for(i=0; i < dim[0]; i++) {
+						fop = (float *)(bop + i*outrowstride);
+						
+						//calculate normalized vector direction
+						vectNorm[0] = fip[2]-fip[0];
+						vectNorm[1] = fip[3]-fip[1];
+						
+						distance = jit_math_sqrt( vectNorm[0]*vectNorm[0] + vectNorm[1]*vectNorm[1] );
+						vectNorm[0] /= distance;
+						vectNorm[1] /= distance;
+						
+						centerPoint[0] = (fip[0] + fip[2])/2.0f;
+						centerPoint[1] = (fip[1] + fip[3])/2.0f;
+						
+						/*
+							widthOffset = { -vectNorm[1]*scaleWidth, vectNorm[0]*scaleWidth }
+							heightOffset = { vectNorm[0]*scaleHeight, vectNorm[1]*scaleHeight }
+						*/
+						
+						//P2 + widthOffset - heightOffset
+						fop[0] = centerPoint[0] - vectNorm[1]*scaleWidth - vectNorm[0]*scaleHeight;
+						fop[1] = centerPoint[1] + vectNorm[0]*scaleWidth - vectNorm[1]*scaleHeight;
+						fop[2] = 0.0f;
+						
+						//P2 - widthOffset - heightOffset
+						fop[3] = centerPoint[0] + vectNorm[1]*scaleWidth - vectNorm[0]*scaleHeight;
+						fop[4] = centerPoint[1] - vectNorm[0]*scaleWidth - vectNorm[1]*scaleHeight;
+						fop[5] = 0.0f;
+						
+						//P1 - widthOffset + heightOffset
+						fop[6] = centerPoint[0] + vectNorm[1]*scaleWidth + vectNorm[0]*scaleHeight;
+						fop[7] = centerPoint[1] - vectNorm[0]*scaleWidth + vectNorm[1]*scaleHeight;
+						fop[8] = 0.0f;
+						
+						//P1 + widthOffset + heightOffset
+						fop[9] = centerPoint[0] - vectNorm[1]*scaleWidth + vectNorm[0]*scaleHeight;
+						fop[10] = centerPoint[1] + vectNorm[0]*scaleWidth + vectNorm[1]*scaleHeight;
+						fop[11] = 0.0f;
+						
+						fip += planecount;
+					}
+				}
+			break;
+			case 6:
+			case 9:
 				//set x-coordinate of point in plane to always be 0
 				planePoint[0] = 0.0f;
 				
 				if(x->normalize) {
-					for(i=0; i < dim[0]; i++) {				
+					for(i=0; i < dim[0]; i++) {
 						//make quad in clockwise direction
 						fop = (float *)(bop + i*outrowstride);
 						
@@ -406,12 +527,34 @@ void xray_jit_boidsrender_calculate_ndim(t_xray_jit_boidsrender *x, long dimcoun
 						fip += planecount;
 					}
 				}
-			}
-			else if (planecount == 9) {
-			
+			break;
 			}
 		}
 		break;
+	}
+}
+
+void xray_jit_boidsrender_make_texcoords(t_jit_matrix_info *out2_minfo, char *bop2)
+{
+	long i, out2_rowspan;
+	float *fop2;
+	
+	out2_rowspan = out2_minfo->dimstride[1];
+	
+	for(i=0; i < out2_minfo->dim[1]; i++) {
+		fop2 = (float *)(bop2 + i*out2_rowspan);
+	
+		fop2[0] = 1.0;
+		fop2[1] = 1.0;
+		
+		fop2[2] = 1.0;
+		fop2[3] = 0.0;
+		
+		fop2[4] = 0.0;
+		fop2[5] = 0.0;
+		
+		fop2[6] = 0.0;
+		fop2[7] = 1.0;
 	}
 }
 

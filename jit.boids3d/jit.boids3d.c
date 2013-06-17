@@ -4,6 +4,8 @@
 	adapted from:
 	boids3d 08/2005 a.sier / jasch adapted from boids by eric singer © 1995-2003 eric l. singer
 	free for non-commercial use
+
+	modified 070207 by sier to set boids pos, etc
 */
 
 #include "jit.common.h"
@@ -96,6 +98,13 @@ typedef struct _jit_boids3d
 	
 	double 			d2r;
 	double			r2d;
+
+	//sets
+	int				set;
+	double			set_pos[3];
+	double			set_dir[3];
+	double			set_speed;
+		double			set_speedinv;
 } t_jit_boids3d;
 
 void *_jit_boids3d_class;
@@ -129,6 +138,13 @@ char InFront(BoidPtr theBoid, BoidPtr neighbor);
 void NormalizeVelocity(double *direction);
 double RandomInt(double minRange, double maxRange);
 double DistSqrToPt(double *firstPoint, double *secondPoint);
+//
+t_jit_err jit_boids3d_set(t_jit_boids3d *flockPtr, void *attr, long argc, t_atom *argv);
+t_jit_err jit_boids3d_set_pos(t_jit_boids3d *flockPtr, void *attr, long argc, t_atom *argv);
+t_jit_err jit_boids3d_set_dir(t_jit_boids3d *flockPtr, void *attr, long argc, t_atom *argv);
+t_jit_err jit_boids3d_set_speed(t_jit_boids3d *flockPtr, void *attr, long argc, t_atom *argv);
+t_jit_err jit_boids3d_set_speedinv(t_jit_boids3d *flockPtr, void *attr, long argc, t_atom *argv);
+
 
 t_jit_err jit_boids3d_init(void) 
 {
@@ -247,6 +263,30 @@ t_jit_err jit_boids3d_init(void)
 	
 	jit_class_register(_jit_boids3d_class);
 
+
+
+	//set_pos.
+	attr = jit_object_new(_jit_sym_jit_attr_offset_array,"set_pos",_jit_sym_float64,2,attrflags,
+		(method)0L,(method)jit_boids3d_set_pos,calcoffset(t_jit_boids3d,set_pos));
+	jit_class_addattr(_jit_boids3d_class,attr);
+	//set_dir.
+	attr = jit_object_new(_jit_sym_jit_attr_offset_array,"set_dir",_jit_sym_float64,2,attrflags,
+		(method)0L,(method)jit_boids3d_set_dir,calcoffset(t_jit_boids3d,set_pos));
+	jit_class_addattr(_jit_boids3d_class,attr);
+	//set_speed
+	attr = jit_object_new(atsym,"set_speed",_jit_sym_float64,attrflags,
+		(method)0L,(method)jit_boids3d_set_speed,calcoffset(t_jit_boids3d,set_speed));
+	jit_class_addattr(_jit_boids3d_class,attr);
+	//set_speed
+	attr = jit_object_new(atsym,"set_speedinv",_jit_sym_float64,attrflags,
+		(method)0L,(method)jit_boids3d_set_speedinv,calcoffset(t_jit_boids3d,set_speedinv));
+	jit_class_addattr(_jit_boids3d_class,attr);
+	//number
+	attr = jit_object_new(atsym,"set",_jit_sym_long,attrflags,
+		(method)0L,(method)jit_boids3d_set,calcoffset(t_jit_boids3d,set));
+	jit_class_addattr(_jit_boids3d_class,attr);
+
+
 	return JIT_ERR_NONE;
 }
 
@@ -280,6 +320,69 @@ t_jit_err jit_boids3d_number(t_jit_boids3d *flockPtr, void *attr, long argc, t_a
 	flockPtr->number = numBoids;
 	Flock_resetBoids(flockPtr);
 }
+
+
+t_jit_err jit_boids3d_set(t_jit_boids3d *flockPtr, void *attr, long argc, t_atom *argv)
+{
+	long set;	
+	set = MAX(jit_atom_getlong(argv), 0);
+	flockPtr->set = set;
+}
+
+
+t_jit_err jit_boids3d_set_pos(t_jit_boids3d *flockPtr, void *attr, long argc, t_atom *argv)
+{
+	double pos[3];
+	int id = flockPtr->set; 
+	
+	pos[0] = jit_atom_getfloat(argv+0);
+	pos[1] = jit_atom_getfloat(argv+1);
+	pos[2] = jit_atom_getfloat(argv+2);
+	
+	flockPtr->boid[id].newPos[x] = pos[0];
+	flockPtr->boid[id].newPos[y] = pos[1];
+		flockPtr->boid[id].newPos[z] = pos[2];
+	flockPtr->boid[id].oldPos[x] = pos[0];
+	flockPtr->boid[id].oldPos[y] = pos[1];
+		flockPtr->boid[id].oldPos[z] = pos[2];
+}
+t_jit_err jit_boids3d_set_dir(t_jit_boids3d *flockPtr, void *attr, long argc, t_atom *argv)
+{
+	double dir[3];
+	int id = flockPtr->set; 
+	
+	dir[0] = jit_atom_getfloat(argv+0);
+	dir[1] = jit_atom_getfloat(argv+1);
+	dir[2] = jit_atom_getfloat(argv+2);
+	
+	flockPtr->boid[id].newDir[x] = dir[0];
+	flockPtr->boid[id].newDir[y] = dir[1];
+	flockPtr->boid[id].newDir[z] = dir[2];
+	flockPtr->boid[id].oldDir[x] = dir[0];
+	flockPtr->boid[id].oldDir[y] = dir[1];
+	flockPtr->boid[id].oldDir[z] = dir[2];
+}
+t_jit_err jit_boids3d_set_speed(t_jit_boids3d *flockPtr, void *attr, long argc, t_atom *argv)
+{
+	double speed;
+	int id = flockPtr->set; 
+	
+	speed = jit_atom_getfloat(argv+0);
+	
+	flockPtr->boid[id].speed = speed;
+}
+
+
+t_jit_err jit_boids3d_set_speedinv(t_jit_boids3d *flockPtr, void *attr, long argc, t_atom *argv)
+{
+	double speed;
+	int id = flockPtr->set; 
+	
+	speed = flockPtr->boid[id].speed ;
+	
+	flockPtr->boid[id].speed = -1*speed;
+}
+
 
 t_jit_err jit_boids3d_matrix_calc(t_jit_boids3d *flockPtr, void *inputs, void *outputs)
 {
